@@ -1,5 +1,7 @@
 # EGM-Lite Checklist: kali-zsh-setup.sh (rev 17 — standalone self-contained template; rev 16 + Goldfish spec-review round-16 fixes)
 
+**Spec Review Status:** Verified [✅ LGTM] (round 17, subagent `sa-0-819f5f33`)
+
 Goal: Rewrite [`kali-zsh-setup.sh`](../kali-zsh-setup.sh) as a **single self-contained script** that runs locally on any Debian machine: Kali templates embedded verbatim, no SSH, no Kali host, no second machine. Copy the one file anywhere on the target, run it, get a Kali-identical zsh (system-wide: `/etc/skel` + all interactive profiles, per the earlier "на всех профилях" requirement, which the user did not revoke).
 
 Review baseline: starting commit `3cfc430`; working tree has untracked [`kali-zsh-setup.sh`](../kali-zsh-setup.sh) (rev 16 SSH version, 17 543 bytes) and `egm/`. Before the first edit, record sha256 of the pre-edit script in this checklist as the review baseline (untracked file ⇒ `git diff` alone gives incomplete coverage).
