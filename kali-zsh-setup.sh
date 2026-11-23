@@ -8,6 +8,18 @@
 set -Eeuo pipefail
 IFS=$'\n\t'
 
+# Normalize PATH: if standard user path (/usr/bin or /bin) is present, ensure admin directories
+# (/usr/local/sbin, /usr/sbin, /sbin) are also present even when invoked from 'su' without dash
+if [[ ":${PATH:-}:" =~ :/usr/bin: ]] || [[ ":${PATH:-}:" =~ :/bin: ]]; then
+    for p in /usr/local/sbin /usr/sbin /sbin; do
+        case ":${PATH:-}:" in
+            *":$p:"*) ;;
+            *) PATH="${PATH:+$PATH:}$p" ;;
+        esac
+    done
+    export PATH
+fi
+
 readonly PINNED_ZSHRC_SHA256="56ad0fc1f9cb19c6c8f3c1db7e370ba79629b8c08d645350e7697ba5fd58a3ed"
 readonly PINNED_ZPROFILE_SHA256="54ccdd24f52857bb92e90881e81218b4020f578d0e92db92a8fa1a97ae718d79"
 readonly SENTINEL_LINE="export KALI_ZSH_SETUP_ACTIVE=1"
@@ -397,6 +409,7 @@ handle_privileges_and_lock() {
     if [[ -z "$real_script_path" || ! -f "$real_script_path" ]]; then
         log_fatal "Failed to resolve real path of script ($0)"
     fi
+    chmod +x "$real_script_path" 2>/dev/null || true
 
     if [[ "$EUID" -ne 0 ]]; then
         if command -v sudo >/dev/null 2>&1; then
@@ -510,7 +523,11 @@ is_home_accessible() {
     [[ ! -d "$uhome" ]] && return 1
     # Check accessibility: if running as root, test via runuser; if non-root (e.g. preflight), test permissions
     if [[ "$EUID" -eq 0 ]]; then
-        runuser -u "$uname" -- test -r "$uhome" -a -x "$uhome" 2>/dev/null
+        if [[ "$uname" == "root" ]]; then
+            test -r "$uhome" -a -x "$uhome"
+        else
+            runuser -u "$uname" -- test -r "$uhome" -a -x "$uhome" 2>/dev/null
+        fi
     else
         # Running as non-root (e.g. preflight audit by normal user)
         if [[ "$USER" == "$uname" ]]; then
@@ -1431,7 +1448,11 @@ validate_user_gate() {
     fi
 
     local rc=0
-    runuser -u "$uname" -- env -u ZDOTDIR -u FPATH -u KALI_ZSH_SETUP_ACTIVE -u PROMPT -u PS1 HOME="$uhome" TERM=xterm-256color timeout --kill-after=10s 30s zsh -l -i -c "$gate_cmd" >/dev/null 2>&1 || rc=$?
+    if [[ "$uname" == "root" && "$EUID" -eq 0 ]]; then
+        env -u ZDOTDIR -u FPATH -u KALI_ZSH_SETUP_ACTIVE -u PROMPT -u PS1 HOME="$uhome" TERM=xterm-256color timeout --kill-after=10s 30s zsh -l -i -c "$gate_cmd" >/dev/null 2>&1 || rc=$?
+    else
+        runuser -u "$uname" -- env -u ZDOTDIR -u FPATH -u KALI_ZSH_SETUP_ACTIVE -u PROMPT -u PS1 HOME="$uhome" TERM=xterm-256color timeout --kill-after=10s 30s zsh -l -i -c "$gate_cmd" >/dev/null 2>&1 || rc=$?
+    fi
 
     if [[ "$rc" -eq 0 ]]; then
         return 0
@@ -1457,7 +1478,11 @@ validate_user_gate() {
     chown "$uid:$gid" "$probe_tmp/.zshrc"
 
     local probe_rc=0
-    runuser -u "$uname" -- env -u ZDOTDIR -u FPATH -u KALI_ZSH_SETUP_ACTIVE -u PROMPT -u PS1 HOME="$probe_tmp" TERM=xterm-256color timeout --kill-after=10s 30s zsh -l -i -c "$gate_cmd" >/dev/null 2>&1 || probe_rc=$?
+    if [[ "$uname" == "root" && "$EUID" -eq 0 ]]; then
+        env -u ZDOTDIR -u FPATH -u KALI_ZSH_SETUP_ACTIVE -u PROMPT -u PS1 HOME="$probe_tmp" TERM=xterm-256color timeout --kill-after=10s 30s zsh -l -i -c "$gate_cmd" >/dev/null 2>&1 || probe_rc=$?
+    else
+        runuser -u "$uname" -- env -u ZDOTDIR -u FPATH -u KALI_ZSH_SETUP_ACTIVE -u PROMPT -u PS1 HOME="$probe_tmp" TERM=xterm-256color timeout --kill-after=10s 30s zsh -l -i -c "$gate_cmd" >/dev/null 2>&1 || probe_rc=$?
+    fi
     rm -rf "$probe_tmp"
 
     if [[ "$probe_rc" -eq 0 ]]; then
@@ -1478,7 +1503,11 @@ run_user_smoke() {
     local smoke_out=""
     local rc=0
 
-    smoke_out=$(runuser -u "$uname" -- env -u ZDOTDIR -u FPATH -u KALI_ZSH_SETUP_ACTIVE -u PROMPT -u PS1 HOME="$uhome" TERM=xterm-256color timeout --kill-after=10s 30s zsh -l -i -c "$smoke_cmd" 2>/dev/null) || rc=$?
+    if [[ "$uname" == "root" && "$EUID" -eq 0 ]]; then
+        smoke_out=$(env -u ZDOTDIR -u FPATH -u KALI_ZSH_SETUP_ACTIVE -u PROMPT -u PS1 HOME="$uhome" TERM=xterm-256color timeout --kill-after=10s 30s zsh -l -i -c "$smoke_cmd" 2>/dev/null) || rc=$?
+    else
+        smoke_out=$(runuser -u "$uname" -- env -u ZDOTDIR -u FPATH -u KALI_ZSH_SETUP_ACTIVE -u PROMPT -u PS1 HOME="$uhome" TERM=xterm-256color timeout --kill-after=10s 30s zsh -l -i -c "$smoke_cmd" 2>/dev/null) || rc=$?
+    fi
 
     if [[ "$rc" -ne 0 ]]; then
         log_warn "Smoke test for $uname failed with rc=$rc (classified as non-fatal warning)"
@@ -1627,12 +1656,16 @@ main() {
     # Evaluate systemic abort condition:
     # If all processed users failed and none had user-local cause
     local total_processed=$(( ${#valid_users[@]} + ${#failed_users[@]} + (${#root_user_entry} > 0 ? 1 : 0) ))
-    if [[ "$total_processed" -gt 0 && ${#valid_users[@]} -eq 0 && -z "$root_user_entry" ]]; then
-        # Check if any failure was attributable to user-local
-        # If no user validated and all were systemic failures -> global abort
-        log_err "Global abort: all validated users failed validation gate with systemic causes!"
-        run_rollback
-        exit 1
+    if [[ ${#valid_users[@]} -eq 0 && -z "$root_user_entry" ]]; then
+        if [[ "$total_processed" -gt 0 ]]; then
+            # Check if any failure was attributable to user-local
+            # If no user validated and all were systemic failures -> global abort
+            log_err "Global abort: all validated users failed validation gate with systemic causes!"
+            run_rollback
+            exit 1
+        else
+            log_warn "No users were eligible for shell switch (skipped: ${skipped_users[*]})."
+        fi
     fi
 
     # 8. Shell Switch Phase
