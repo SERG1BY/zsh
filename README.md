@@ -23,7 +23,25 @@
 - Доступ к репозиториям пакетов для установки обязательного пакета `zsh` (плагины `zsh-syntax-highlighting`, `zsh-autosuggestions`, `command-not-found` ставятся best-effort).
 - Права root или доступ к `sudo`.
 
-## Инструкция по запуску
+## Быстрый запуск (одной командой в терминал)
+
+Вставьте команду в терминал на целевой машине:
+
+**Через curl:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/SERG1BY/zsh/main/kali-zsh-setup.sh -o /tmp/kali-zsh-setup.sh && bash /tmp/kali-zsh-setup.sh
+```
+
+**Либо через wget:**
+```bash
+wget -qO /tmp/kali-zsh-setup.sh https://raw.githubusercontent.com/SERG1BY/zsh/main/kali-zsh-setup.sh && bash /tmp/kali-zsh-setup.sh
+```
+
+*(Пайп `curl ... | bash` заблокирован защитой целостности скрипта, поэтому команда сначала сохраняет скрипт в `/tmp` и запускает его с диска).*
+
+---
+
+## Пошаговая инструкция по запуску
 
 ### 1. Копирование скрипта на целевую систему
 
