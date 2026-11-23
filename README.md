@@ -29,15 +29,15 @@
 
 **Через curl:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/SERG1BY/zsh/main/kali-zsh-setup.sh -o /tmp/kali-zsh-setup.sh && bash /tmp/kali-zsh-setup.sh
+curl -fsSL https://raw.githubusercontent.com/SERG1BY/zsh/main/kali-zsh-setup.sh | sudo bash
 ```
 
 **Либо через wget:**
 ```bash
-wget -qO /tmp/kali-zsh-setup.sh https://raw.githubusercontent.com/SERG1BY/zsh/main/kali-zsh-setup.sh && bash /tmp/kali-zsh-setup.sh
+wget -qO- https://raw.githubusercontent.com/SERG1BY/zsh/main/kali-zsh-setup.sh | sudo bash
 ```
 
-*(Пайп `curl ... | bash` заблокирован защитой целостности скрипта, поэтому команда сначала сохраняет скрипт в `/tmp` и запускает его с диска).*
+*(Если вы уже работаете под пользователем `root`, достаточно выполнить `curl -fsSL ... | bash` или `wget -qO- ... | bash`).*
 
 ---
 

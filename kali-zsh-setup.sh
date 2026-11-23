@@ -398,25 +398,23 @@ verify_embedded_templates() {
 
 # --- Privilege Elevation & Concurrency Guard ---
 handle_privileges_and_lock() {
-    # Pipe-run guard: apply in BOTH root and non-root branches
-    # If $0 does not point to an existing readable regular file, fatal
-    if [[ ! -f "$0" || ! -r "$0" ]]; then
-        log_fatal "Cannot execute from stdin/pipe ($0 is not a readable file). Save script to disk first: bash /path/to/kali-zsh-setup.sh"
-    fi
-
-    local real_script_path
-    real_script_path=$(readlink -f -- "$0" 2>/dev/null || realpath -- "$0" 2>/dev/null || true)
-    if [[ -z "$real_script_path" || ! -f "$real_script_path" ]]; then
-        log_fatal "Failed to resolve real path of script ($0)"
-    fi
-    chmod +x "$real_script_path" 2>/dev/null || true
-
     if [[ "$EUID" -ne 0 ]]; then
-        if command -v sudo >/dev/null 2>&1; then
-            log_info "Elevating privileges via sudo..."
-            exec sudo -- "$real_script_path" "$@"
+        if [[ -f "$0" && -r "$0" ]]; then
+            local real_script_path
+            real_script_path=$(readlink -f -- "$0" 2>/dev/null || realpath -- "$0" 2>/dev/null || true)
+            chmod +x "$real_script_path" 2>/dev/null || true
+            if command -v sudo >/dev/null 2>&1; then
+                log_info "Elevating privileges via sudo..."
+                exec sudo -- "$real_script_path" "$@"
+            else
+                log_fatal "Root privileges required, but sudo is not installed. Please run as root."
+            fi
         else
-            log_fatal "Root privileges required, but sudo is not installed. Please run as root."
+            if command -v sudo >/dev/null 2>&1; then
+                log_fatal "Piped execution requires root. Please run: curl -fsSL <URL> | sudo bash"
+            else
+                log_fatal "Root privileges required. Please run as root."
+            fi
         fi
     fi
 
@@ -1718,7 +1716,7 @@ main() {
     exit 0
 }
 
-# Invoke main entrypoint if executed directly (not sourced)
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+# Invoke main entrypoint if executed directly or piped (not sourced)
+if ! (return 0 2>/dev/null); then
     main "$@"
 fi
