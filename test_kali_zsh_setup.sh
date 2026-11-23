@@ -124,6 +124,10 @@ res_pam_valid=$(bash -c "source '$SCRIPT'; has_pam_zdotdir '$TMP_ZDOT/pam_valid'
 res_pam_comment=$(bash -c "source '$SCRIPT'; has_pam_zdotdir '$TMP_ZDOT/pam_comment' && echo 1 || echo 0")
 assert_eq "1" "$res_pam_valid" "PAM syntax ZDOTDIR DEFAULT= triggers fatal"
 assert_eq "0" "$res_pam_comment" "Commented PAM ZDOTDIR does not trigger fatal"
+
+# check_system_zdotdir contract: return 1 on clean, 0 on found
+res_sys_clean=$(bash -c "source '$SCRIPT'; check_system_zdotdir && echo 1 || echo 0")
+assert_eq "0" "$res_sys_clean" "Clean system ZDOTDIR check returns 1 (no error found)"
 rm -rf "$TMP_ZDOT"
 
 # 7. Unusable home fixture check

@@ -484,7 +484,8 @@ check_system_zdotdir() {
             found=1
         fi
     done
-    return "$found"
+    [[ "$found" -eq 1 ]] && return 0
+    return 1
 }
 
 # Per-user ZDOTDIR scan across user dotfiles
@@ -788,7 +789,7 @@ run_preflight() {
     local pkg
     for pkg in zsh zsh-syntax-highlighting zsh-autosuggestions command-not-found; do
         local candidate
-        candidate=$(apt-cache policy "$pkg" 2>/dev/null | grep -E '^[[:space:]]*Candidate:' | awk '{print $2}' || true)
+        candidate=$(LC_ALL=C apt-cache policy "$pkg" 2>/dev/null | grep -E '^[[:space:]]*Candidate:' | awk '{print $2}' || true)
         if [[ -z "$candidate" || "$candidate" == "(none)" ]]; then
             if [[ "$pkg" == "zsh" ]]; then
                 log_err "APT: Mandatory package 'zsh' has no installation candidate!"
